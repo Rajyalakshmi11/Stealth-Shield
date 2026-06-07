@@ -1,0 +1,116 @@
+from tkinter import *
+from tkinter import filedialog
+from PIL import Image, ImageTk
+
+img = None
+message_entry = None
+key_entry = None
+status_label = None
+decoded_label = None
+
+def open_file():
+    global img, image_label
+    file_path = filedialog.askopenfilename(filetypes=[("Image Files", "*.png;*.jpg;*.jpeg")])
+    img = Image.open(file_path)
+    img.thumbnail((300, 300))
+    img = ImageTk.PhotoImage(img)
+    image_label.config(image=img)
+    image_label.image = img
+
+def encode_message():
+    message = message_entry.get()
+    key = key_entry.get()
+    encoded_image = img.copy()
+    encoded_image.putalpha(255)
+    data = ''.join(format(ord(char), '08b') for char in message)
+    key = ''.join(format(ord(char), '08b') for char in key)
+    key_index = 0
+    for i in range(encoded_image.width):
+        for j in range(encoded_image.height):
+            if key_index < len(key):
+                pixel = list(encoded_image.getpixel((i, j)))
+                for k in range(3):
+                    if key_index < len(key):
+                        if key[key_index] == '0' and pixel[k] % 2 != 0:
+                            pixel[k] -= 1
+                        elif key[key_index] == '1' and pixel[k] % 2 == 0:
+                            pixel[k] += 1
+                        key_index += 1
+                encoded_image.putpixel((i, j), tuple(pixel))
+            if len(data) > 0:
+                pixel = list(encoded_image.getpixel((i, j)))
+                for k in range(3):
+                    if len(data) > 0:
+                        pixel[k] = pixel[k] // 2 * 2 + int(data[0])
+                        data = data[1:]
+                encoded_image.putpixel((i, j), tuple(pixel))
+            else:
+                break
+        else:
+            continue
+        break
+    encoded_image.save("encoded_image.png")
+    status_label.config(text="Message Encoded Successfully!")
+
+def decode_message():
+    key = key_entry.get()
+    decoded_message = ""
+    key = ''.join(format(ord(char), '08b') for char in key)
+    key_index = 0
+    encoded_image = img.copy()
+    data = ""
+    for i in range(encoded_image.width):
+        for j in range(encoded_image.height):
+            if key_index < len(key):
+                pixel = list(encoded_image.getpixel((i, j)))
+                for k in range(3):
+                    if key_index < len(key):
+                        if key[key_index] == '0' and pixel[k] % 2 != 0:
+                            pixel[k] -= 1
+                        elif key[key_index] == '1' and pixel[k] % 2 == 0:
+                            pixel[k] += 1
+                        key_index += 1
+                encoded_image.putpixel((i, j), tuple(pixel))
+            pixel = encoded_image.getpixel((i, j))
+            for k in range(3):
+                data += str(pixel[k] % 2)
+            if len(data) >= 8:
+                char = chr(int(data[:8], 2))
+                decoded_message += char
+                data = data[8:]
+            if len(decoded_message) > 0 and decoded_message[-1] == '\x00':
+                break
+        else:
+            continue
+        break
+    decoded_message = decoded_message[:-1]  # Remove the last null character
+    decoded_label.config(text=f"Decoded Message: {decoded_message}")
+
+root = Tk()
+root.title("Steganography Tool")
+
+btn_open = Button(root, text="Open Image", command=open_file)
+btn_open.pack()
+
+image_label = Label(root)
+image_label.pack()
+
+message_entry = Entry(root, width=40)
+message_entry.pack()
+
+key_entry = Entry(root, width=40)
+key_entry.pack()
+
+btn_encode = Button(root, text="Encode", command=encode_message)
+btn_encode.pack()
+
+btn_decode = Button(root, text="Decode", command=decode_message)
+btn_decode.pack()
+
+status_label = Label(root, text="")
+status_label.pack()
+
+decoded_label = Label(root, text="")
+decoded_label.pack()
+
+root.mainloop()
